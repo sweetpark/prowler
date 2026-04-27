@@ -90,7 +90,7 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
         translated = await translate_findings_batch(findings)
 
         # 결과 집계
-        _aggregate_results(scan, translated)
+        _aggregate_results(scan, translated, compliance=request.compliance)
         scan.status = ScanStatus.COMPLETED
         scan.completed_at = datetime.now()
         logger.info(f"[{scan_id}] 스캔 완료: 전체={scan.total}, 통과={scan.passed}, 실패={scan.failed}")
@@ -128,6 +128,9 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
 
     if request.region and request.provider == "aws":
         cmd.extend(["--region", request.region])
+
+    if request.compliance:
+        cmd.extend(["--compliance", request.compliance])
 
     return cmd
 
@@ -215,6 +218,12 @@ def _parse_finding(item: dict) -> Optional[dict]:
             if refs:
                 remediation_text += f"\n참고: {', '.join(refs[:2])}"
 
+            # account_id, namespace, cluster
+            account_id = cloud.get("account", {}).get("uid", "")
+            namespace = resource.get("namespace", "")
+            resource_type = resource.get("type", "")
+            cluster = resource.get("name", "") if "cluster" in resource_type.lower() else ""
+
             return {
                 "check_id": check_id,
                 "check_title": finding_info.get("title", ""),
@@ -227,6 +236,9 @@ def _parse_finding(item: dict) -> Optional[dict]:
                 "description": finding_info.get("desc", ""),
                 "remediation": remediation_text,
                 "raw": item,
+                "account_id": account_id,
+                "namespace": namespace,
+                "cluster": cluster,
             }
 
         # ── 레거시 형식 (Prowler v3) ────────────────────────────────
@@ -258,7 +270,7 @@ def _parse_finding(item: dict) -> Optional[dict]:
         return None
 
 
-def _aggregate_results(scan: ScanResult, findings: list[dict]) -> None:
+def _aggregate_results(scan: ScanResult, findings: list[dict], compliance: Optional[str] = None) -> None:
     """스캔 결과를 집계합니다."""
     scan.findings = []
     scan.total = len(findings)
@@ -267,6 +279,10 @@ def _aggregate_results(scan: ScanResult, findings: list[dict]) -> None:
     scan.error_count = 0
     scan.services_summary = {}
     scan.severity_summary = {"critical": 0, "high": 0, "medium": 0, "low": 0, "informational": 0}
+    scan.compliance = compliance
+
+    account_ids_set: set = set()
+    regions_set: set = set()
 
     for f in findings:
         status = f.get("status", "").upper()
@@ -293,6 +309,14 @@ def _aggregate_results(scan: ScanResult, findings: list[dict]) -> None:
         elif status == "FAIL":
             scan.services_summary[service]["failed"] += 1
 
+        # account_ids / regions 수집
+        account_id = f.get("account_id", "")
+        if account_id:
+            account_ids_set.add(account_id)
+        region = f.get("region", "")
+        if region:
+            regions_set.add(region)
+
         # FindingSummary 생성
         scan.findings.append(
             FindingSummary(
@@ -304,10 +328,16 @@ def _aggregate_results(scan: ScanResult, findings: list[dict]) -> None:
                 status=status,
                 resource_id=f.get("resource_id"),
                 resource_arn=f.get("resource_arn"),
-                region=f.get("region"),
+                region=region or None,
                 description=f.get("description"),
                 description_ko=f.get("description_ko"),
                 remediation=f.get("remediation"),
                 remediation_ko=f.get("remediation_ko"),
+                account_id=account_id or None,
+                namespace=f.get("namespace") or None,
+                cluster=f.get("cluster") or None,
             )
         )
+
+    scan.account_ids = sorted(account_ids_set)
+    scan.regions = sorted(regions_set)

@@ -25,6 +25,7 @@ class ScanRequest(BaseModel):
     checks: Optional[List[str]] = Field(default=None, description="점검할 항목 목록")
     severity: Optional[List[ScanSeverity]] = Field(default=None, description="점검할 심각도 필터")
     region: Optional[str] = Field(default=None, description="AWS 리전")
+    compliance: Optional[str] = Field(default=None, description="컴플라이언스 프레임워크")
 
 
 class FindingSummary(BaseModel):
@@ -42,6 +43,9 @@ class FindingSummary(BaseModel):
     remediation: Optional[str] = None
     remediation_ko: Optional[str] = None
     raw: Optional[Dict[str, Any]] = None
+    account_id: Optional[str] = None
+    namespace: Optional[str] = None
+    cluster: Optional[str] = None
 
 
 class ScanResult(BaseModel):
@@ -58,6 +62,9 @@ class ScanResult(BaseModel):
     findings: List[FindingSummary] = []
     services_summary: Dict[str, Dict[str, int]] = {}
     severity_summary: Dict[str, int] = {}
+    compliance: Optional[str] = None
+    account_ids: List[str] = []
+    regions: List[str] = []
 
 
 class DashboardStats(BaseModel):

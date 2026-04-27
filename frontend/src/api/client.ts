@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Docker 배포 시 nginx가 /api/ 프록시 처리 → 빈 문자열(상대경로)
+// 로컬 개발 시 VITE_API_URL=http://localhost:8000 (.env.local에 설정)
+const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -13,6 +15,7 @@ export interface ScanRequest {
   checks?: string[];
   severity?: string[];
   region?: string;
+  compliance?: string;
 }
 
 export interface FindingSummary {
@@ -29,6 +32,9 @@ export interface FindingSummary {
   description_ko?: string;
   remediation?: string;
   remediation_ko?: string;
+  account_id?: string;
+  namespace?: string;
+  cluster?: string;
 }
 
 export interface ScanResult {
@@ -45,6 +51,14 @@ export interface ScanResult {
   findings: FindingSummary[];
   services_summary: Record<string, Record<string, number>>;
   severity_summary: Record<string, number>;
+  compliance?: string;
+  account_ids: string[];
+  regions: string[];
+}
+
+export interface ComplianceItem {
+  value: string;
+  label: string;
 }
 
 export interface DashboardStats {
@@ -82,3 +96,6 @@ export const getServices = () =>
 
 export const getScans = () =>
   api.get<ScanResult[]>('/api/scans');
+
+export const getCompliances = () =>
+  api.get<{ compliances: Record<string, ComplianceItem[]> }>('/api/compliances');

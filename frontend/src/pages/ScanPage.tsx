@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Play, Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { startScan, getScan, getServices, ScanResult } from '../api/client';
+import { Play, Loader2, CheckCircle2, XCircle, Clock, X } from 'lucide-react';
+import { startScan, getScan, getServices, getCompliances, ScanResult, ComplianceItem } from '../api/client';
 
 const SEVERITY_OPTIONS = [
   { value: 'critical', label: '심각 (Critical)' },
@@ -25,9 +25,13 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
   const [scanning, setScanning] = useState(false);
   const [currentScan, setCurrentScan] = useState<ScanResult | null>(null);
   const [pollInterval, setPollInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [compliancesByProvider, setCompliancesByProvider] = useState<Record<string, ComplianceItem[]>>({});
+  const [selectedCompliance, setSelectedCompliance] = useState<ComplianceItem | null>(null);
+  const [complianceSearch, setComplianceSearch] = useState('');
 
   useEffect(() => {
     getServices().then(r => setServices(r.data.services));
+    getCompliances().then(r => setCompliancesByProvider(r.data.compliances));
     return () => { if (pollInterval) clearInterval(pollInterval); };
   }, []);
 
@@ -41,6 +45,7 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
         services: selectedServices.length > 0 ? selectedServices : undefined,
         severity: selectedSeverity.length > 0 ? selectedSeverity : undefined,
         region: region || undefined,
+        compliance: selectedCompliance?.value,
       });
 
       const { scan_id } = res.data;
@@ -114,6 +119,63 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
               </button>
             ))}
           </div>
+        </div>
+
+        {/* 컴플라이언스 선택 */}
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            컴플라이언스 프레임워크 <span className="text-gray-400 font-normal">(선택 안하면 전체)</span>
+          </label>
+
+          {selectedCompliance ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                {selectedCompliance.label}
+                <button
+                  onClick={() => setSelectedCompliance(null)}
+                  className="ml-1 hover:text-blue-600"
+                  aria-label="컴플라이언스 선택 해제"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="border rounded-lg bg-gray-50 p-2">
+              <input
+                type="text"
+                value={complianceSearch}
+                onChange={e => setComplianceSearch(e.target.value)}
+                placeholder="프레임워크 검색..."
+                className="w-full px-2 py-1.5 text-sm border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+              <div className="max-h-40 overflow-y-auto space-y-3">
+                {Object.entries(compliancesByProvider).map(([provider, items]) => {
+                  const filtered = items.filter(item =>
+                    item.label.toLowerCase().includes(complianceSearch.toLowerCase()) ||
+                    item.value.toLowerCase().includes(complianceSearch.toLowerCase())
+                  );
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div key={provider}>
+                      <p className="text-xs font-semibold text-gray-400 uppercase mb-1 px-1">{provider}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {filtered.map(item => (
+                          <button
+                            key={item.value}
+                            onClick={() => { setSelectedCompliance(item); setComplianceSearch(''); }}
+                            className="px-2.5 py-1 rounded text-xs border bg-white text-gray-600 border-gray-200 hover:border-blue-400 transition-colors"
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 서비스 선택 */}

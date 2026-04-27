@@ -110,6 +110,34 @@ async def get_available_checks():
         return {"checks": [], "total": 0, "error": "prowler가 설치되지 않았습니다."}
 
 
+@router.get("/compliances", summary="지원 컴플라이언스 프레임워크 목록")
+async def get_compliances():
+    """
+    Prowler가 지원하는 컴플라이언스 프레임워크 목록을 제공자별로 반환합니다.
+    """
+    aws_compliances = [
+        {"value": "cis_2.0_aws", "label": "CIS AWS Foundations v2.0"},
+        {"value": "cis_3.0_aws", "label": "CIS AWS Foundations v3.0"},
+        {"value": "aws_foundational_security_best_practices_aws", "label": "AWS Foundational Security Best Practices"},
+        {"value": "pci_4.0_aws", "label": "PCI DSS v4.0"},
+        {"value": "hipaa_aws", "label": "HIPAA"},
+        {"value": "soc2_aws", "label": "SOC 2"},
+        {"value": "iso27001_2022_aws", "label": "ISO 27001:2022"},
+        {"value": "gdpr_aws", "label": "GDPR"},
+        {"value": "kisa_isms_p_2023_aws", "label": "KISA ISMS-P 2023"},
+        {"value": "kisa_isms_p_2023_korean_aws", "label": "KISA ISMS-P 2023 (한국어)"},
+        {"value": "nist_800_53_revision_5_aws", "label": "NIST 800-53 Rev.5"},
+        {"value": "nist_csf_2.0_aws", "label": "NIST CSF 2.0"},
+    ]
+    return {
+        "compliances": {
+            "aws": aws_compliances,
+            "azure": [],
+            "gcp": [],
+        }
+    }
+
+
 @router.get("/services", summary="사용 가능한 서비스 목록")
 async def get_available_services():
     """Prowler가 지원하는 AWS 서비스 목록"""

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { ShieldAlert, ShieldCheck, AlertTriangle, Activity } from 'lucide-react';
-import { getDashboard, DashboardStats, FindingSummary } from '../api/client';
+import { getDashboard, getScans, getScan, DashboardStats, FindingSummary, ScanResult } from '../api/client';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#dc2626',
@@ -30,24 +30,50 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [latestScan, setLatestScan] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedAccount, setSelectedAccount] = useState<string>('all');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all');
 
   useEffect(() => {
-    fetchDashboard();
-    const interval = setInterval(fetchDashboard, 30000);
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboard = async () => {
+  const fetchAll = async () => {
     try {
-      const res = await getDashboard();
-      setStats(res.data);
+      const [dashRes, scansRes] = await Promise.all([getDashboard(), getScans()]);
+      setStats(dashRes.data);
+
+      const completed = scansRes.data
+        .filter(s => s.status === 'completed')
+        .sort((a, b) => {
+          const ta = a.completed_at ?? a.started_at ?? '';
+          const tb = b.completed_at ?? b.started_at ?? '';
+          return tb.localeCompare(ta);
+        });
+
+      if (completed.length > 0) {
+        const fullScan = await getScan(completed[0].scan_id);
+        setLatestScan(fullScan.data);
+      }
     } catch (e) {
       console.error('대시보드 로드 실패:', e);
     } finally {
       setLoading(false);
     }
   };
+
+  // 필터 적용된 top_failed_checks
+  const filteredTopFailed = useMemo<FindingSummary[]>(() => {
+    if (!stats) return [];
+    return stats.top_failed_checks.filter(f => {
+      const accountOk = selectedAccount === 'all' || f.account_id === selectedAccount;
+      const regionOk = selectedRegion === 'all' || f.region === selectedRegion;
+      return accountOk && regionOk;
+    });
+  }, [stats, selectedAccount, selectedRegion]);
 
   if (loading) {
     return (
@@ -94,6 +120,49 @@ export default function Dashboard() {
           마지막 스캔: {new Date(stats.last_scan_at).toLocaleString('ko-KR')}
         </p>
       )}
+
+      {/* 필터 바 */}
+      <div className="bg-white rounded-xl shadow-sm border px-5 py-4 flex flex-wrap items-center gap-4">
+        {/* Account 드롭다운 */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">계정</label>
+          <select
+            value={selectedAccount}
+            onChange={e => setSelectedAccount(e.target.value)}
+            className="text-sm border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="all">전체</option>
+            {(latestScan?.account_ids ?? []).map(id => (
+              <option key={id} value={id}>{id}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Region 드롭다운 */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">리전</label>
+          <select
+            value={selectedRegion}
+            onChange={e => setSelectedRegion(e.target.value)}
+            className="text-sm border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="all">전체</option>
+            {(latestScan?.regions ?? []).map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Compliance 표시 (읽기 전용) */}
+        {latestScan?.compliance && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600 whitespace-nowrap">컴플라이언스</label>
+            <span className="text-sm px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
+              {latestScan.compliance} <span className="text-blue-400 text-xs">(스캔 설정)</span>
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -166,13 +235,22 @@ export default function Dashboard() {
 
       {/* 주요 실패 항목 */}
       <div className="bg-white rounded-xl shadow-sm border">
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-800">주요 실패 항목</h3>
+          {(selectedAccount !== 'all' || selectedRegion !== 'all') && (
+            <span className="text-xs text-gray-400">
+              필터 적용됨 — {filteredTopFailed.length}건
+            </span>
+          )}
         </div>
         <div className="divide-y">
-          {stats.top_failed_checks.slice(0, 10).map((f, i) => (
-            <FindingRow key={i} finding={f} />
-          ))}
+          {filteredTopFailed.length > 0 ? (
+            filteredTopFailed.slice(0, 10).map((f, i) => (
+              <FindingRow key={i} finding={f} />
+            ))
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">선택한 필터에 해당하는 실패 항목이 없습니다.</p>
+          )}
         </div>
       </div>
     </div>
