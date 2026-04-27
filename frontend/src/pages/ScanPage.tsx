@@ -17,7 +17,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   informational: 'text-gray-400',
 };
 
-export default function ScanPage() {
+export default function ScanPage({ translationEnabled = true }: { translationEnabled?: boolean }) {
   const [services, setServices] = useState<string[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [selectedSeverity, setSelectedSeverity] = useState<string[]>([]);
@@ -143,6 +143,13 @@ export default function ScanPage() {
           )}
         </div>
 
+        {/* 번역 상태 안내 */}
+        {!translationEnabled && (
+          <div className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ⚠️ 번역 기능 비활성화 — 결과가 영문으로 표시됩니다. 한국어 번역은 ANTHROPIC_API_KEY 설정 후 사용 가능합니다.
+          </div>
+        )}
+
         {/* 실행 버튼 */}
         <button
           onClick={handleStartScan}
@@ -158,12 +165,12 @@ export default function ScanPage() {
       </div>
 
       {/* 스캔 상태 / 결과 */}
-      {currentScan && <ScanStatusCard scan={currentScan} />}
+      {currentScan && <ScanStatusCard scan={currentScan} translationEnabled={translationEnabled} />}
     </div>
   );
 }
 
-function ScanStatusCard({ scan }: { scan: ScanResult }) {
+function ScanStatusCard({ scan, translationEnabled = true }: { scan: ScanResult; translationEnabled?: boolean }) {
   const statusConfig = {
     pending:   { icon: <Clock className="h-5 w-5 text-gray-400" />, label: '대기 중', color: 'text-gray-500' },
     running:   { icon: <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />, label: '실행 중', color: 'text-blue-600' },
@@ -188,7 +195,9 @@ function ScanStatusCard({ scan }: { scan: ScanResult }) {
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-500 rounded-full animate-pulse w-2/3" />
           </div>
-          <p className="text-xs text-gray-400">Prowler 실행 중 · 완료 후 한국어 번역이 진행됩니다</p>
+          <p className="text-xs text-gray-400">
+            Prowler 실행 중{translationEnabled ? ' · 완료 후 한국어 번역이 진행됩니다' : ' · 결과가 영문으로 표시됩니다'}
+          </p>
         </div>
       )}
 
@@ -219,7 +228,9 @@ function ScanStatusCard({ scan }: { scan: ScanResult }) {
           {/* 실패 항목 목록 */}
           {scan.findings.filter(f => f.status === 'FAIL').length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">실패 항목 (한국어)</h4>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                실패 항목 {translationEnabled ? '(한국어)' : '(영문)'}
+              </h4>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {scan.findings
                   .filter(f => f.status === 'FAIL')

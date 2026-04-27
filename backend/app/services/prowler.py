@@ -82,8 +82,11 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
         # JSON 결과 파싱
         findings = await _parse_prowler_output(output_dir)
 
-        # 한국어 번역
-        logger.info(f"[{scan_id}] {len(findings)}개 항목 번역 시작")
+        # 한국어 번역 (API 키 없으면 스킵)
+        if settings.translation_enabled:
+            logger.info(f"[{scan_id}] {len(findings)}개 항목 번역 시작")
+        else:
+            logger.info(f"[{scan_id}] 번역 비활성화 — 영문 결과 사용 ({len(findings)}개 항목)")
         translated = await translate_findings_batch(findings)
 
         # 결과 집계
@@ -109,16 +112,16 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
     cmd = [
         "prowler",
         request.provider,
-        "--output-formats", "json",
+        "--output-formats", "json-ocsf",
         "--output-directory", output_dir,
         "--no-banner",
     ]
 
     if request.services:
-        cmd.extend(["--services"] + request.services)
+        cmd.extend(["--service"] + request.services)
 
     if request.checks:
-        cmd.extend(["--checks"] + request.checks)
+        cmd.extend(["--check"] + request.checks)
 
     if request.severity:
         cmd.extend(["--severity"] + [s.value for s in request.severity])
@@ -144,14 +147,11 @@ def _build_env() -> dict:
 
 
 async def _parse_prowler_output(output_dir: Path) -> list[dict]:
-    """Prowler JSON 출력을 파싱합니다."""
+    """Prowler JSON 출력을 파싱합니다 (json-ocsf 형식)."""
     findings = []
 
-    # Prowler v3/v4는 타임스탬프 디렉토리에 JSON 파일 생성
+    # Prowler v4는 *.ocsf.json 파일 생성
     json_files = list(output_dir.rglob("*.json"))
-    # ocsf 또는 regular JSON 파일 찾기
-    json_files = [f for f in json_files if "ocsf" not in f.name.lower()]
-
     if not json_files:
         logger.warning(f"JSON 출력 파일을 찾을 수 없음: {output_dir}")
         return findings
@@ -169,14 +169,68 @@ async def _parse_prowler_output(output_dir: Path) -> list[dict]:
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"JSON 파일 파싱 오류 {json_file}: {e}")
 
+    logger.info(f"파싱된 findings 수: {len(findings)}")
     return findings
 
 
+# OCSF status → PASS/FAIL 매핑
+_OCSF_STATUS_MAP = {
+    "New": "FAIL",
+    "Suppressed": "PASS",
+    "Resolved": "PASS",
+    "Other": "FAIL",
+}
+
+
 def _parse_finding(item: dict) -> Optional[dict]:
-    """Prowler JSON 항목을 내부 포맷으로 변환합니다."""
+    """Prowler json-ocsf 항목을 내부 포맷으로 변환합니다."""
     try:
-        # Prowler v3/v4 공통 필드
-        check_metadata = item.get("CheckMetadata", {}) or item.get("metadata", {})
+        # ── OCSF 형식 (Prowler v4) ──────────────────────────────────
+        if "finding_info" in item or "class_uid" in item:
+            finding_info = item.get("finding_info", {})
+            cloud = item.get("cloud", {})
+            resources = item.get("resources", [{}])
+            resource = resources[0] if resources else {}
+            remediation = item.get("remediation", {})
+
+            # check_id: metadata.event_code 또는 finding_info.uid에서 마지막 세그먼트
+            metadata = item.get("metadata", {})
+            check_id = metadata.get("event_code", "")
+            if not check_id:
+                uid = finding_info.get("uid", "")
+                check_id = uid.split("-")[-1] if uid else ""
+
+            # 서비스명: resource group 또는 check_id 첫 세그먼트
+            service_name = (resource.get("group") or {}).get("name", "")
+            if not service_name and check_id:
+                service_name = check_id.split("_")[0]
+
+            # status: status_code(PASS/FAIL) → OCSF status 문자열로 폴백
+            raw_status = item.get("status_code", "")
+            if not raw_status:
+                raw_status = _OCSF_STATUS_MAP.get(item.get("status", ""), "FAIL")
+
+            remediation_text = remediation.get("desc", "")
+            refs = remediation.get("references", [])
+            if refs:
+                remediation_text += f"\n참고: {', '.join(refs[:2])}"
+
+            return {
+                "check_id": check_id,
+                "check_title": finding_info.get("title", ""),
+                "service_name": service_name,
+                "severity": item.get("severity", "medium").lower(),
+                "status": raw_status.upper(),
+                "resource_id": resource.get("name", ""),
+                "resource_arn": resource.get("uid", ""),
+                "region": cloud.get("region", resource.get("region", "")),
+                "description": finding_info.get("desc", ""),
+                "remediation": remediation_text,
+                "raw": item,
+            }
+
+        # ── 레거시 형식 (Prowler v3) ────────────────────────────────
+        check_metadata = item.get("CheckMetadata", {}) or {}
         resource_info = item.get("ResourceDetails", {}) or {}
 
         remediation = check_metadata.get("Remediation", {})
@@ -198,6 +252,7 @@ def _parse_finding(item: dict) -> Optional[dict]:
             "remediation": remediation_text,
             "raw": item,
         }
+
     except Exception as e:
         logger.error(f"finding 파싱 오류: {e}")
         return None

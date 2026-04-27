@@ -59,7 +59,15 @@ export interface DashboardStats {
   top_failed_checks: FindingSummary[];
 }
 
+export interface ServerConfig {
+  translation_enabled: boolean;
+  claude_model: string | null;
+}
+
 // API 함수들
+export const getConfig = () =>
+  api.get<ServerConfig>('/api/config');
+
 export const startScan = (req: ScanRequest) =>
   api.post<{ scan_id: string; message: string }>('/api/scan', req);
 

@@ -1,10 +1,23 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
 
+from app.core.config import settings
 from app.models.scan import DashboardStats, ScanRequest, ScanResult, ScanStatus
 from app.services import prowler as prowler_service
 
 router = APIRouter(prefix="/api", tags=["scan"])
+
+
+@router.get("/config", summary="서버 설정 조회")
+async def get_config():
+    """
+    번역 활성화 여부 등 서버 설정을 반환합니다.
+    프론트엔드에서 API 키 유무를 확인할 때 사용합니다.
+    """
+    return {
+        "translation_enabled": settings.translation_enabled,
+        "claude_model": settings.claude_model if settings.translation_enabled else None,
+    }
 
 
 @router.post("/scan", response_model=dict, summary="Prowler 스캔 시작")

@@ -3,9 +3,14 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    # Anthropic API
-    anthropic_api_key: str = ""
+    # Anthropic API (선택적 - 없으면 영문 결과 표시)
+    anthropic_api_key: Optional[str] = None
     claude_model: str = "claude-haiku-4-5"
+
+    @property
+    def translation_enabled(self) -> bool:
+        """API 키가 설정된 경우에만 번역 활성화"""
+        return bool(self.anthropic_api_key and self.anthropic_api_key.strip())
 
     # Prowler settings
     prowler_output_dir: str = "/tmp/prowler_results"

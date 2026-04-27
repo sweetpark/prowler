@@ -1,5 +1,5 @@
 import anthropic
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
 import logging
 
@@ -8,12 +8,14 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Anthropic 클라이언트 (지연 초기화)
-_client: anthropic.Anthropic | None = None
+_client: Optional[anthropic.Anthropic] = None
 
 
 def get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
+        if not settings.translation_enabled:
+            raise ValueError("ANTHROPIC_API_KEY가 설정되지 않아 번역을 사용할 수 없습니다.")
         _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     return _client
 
@@ -27,10 +29,16 @@ AWS/Azure/GCP 보안 점검 결과를 한국어로 번역해주세요.
 async def translate_findings_batch(findings_data: List[Dict]) -> List[Dict]:
     """
     Prowler 점검 항목을 배치로 한국어 번역합니다.
+    ANTHROPIC_API_KEY가 없으면 원문(영문) 그대로 반환합니다.
     프롬프트 캐싱을 활용하여 비용을 절감합니다.
     """
     if not findings_data:
         return []
+
+    # API 키 없으면 번역 없이 원문 반환
+    if not settings.translation_enabled:
+        logger.info("ANTHROPIC_API_KEY 미설정 — 번역 건너뜀, 영문 결과 반환")
+        return findings_data
 
     # 번역할 항목 추출 (중복 제거)
     unique_checks: Dict[str, Dict] = {}
