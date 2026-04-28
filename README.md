@@ -111,6 +111,41 @@ AWS_DEFAULT_REGION=ap-northeast-2
 docker-compose up --build
 ```
 
+### 3. EC2 배포 (Amazon Linux)
+
+**Docker 설치**
+```bash
+sudo yum install -y docker
+sudo systemctl start docker
+sudo usermod -aG docker ec2-user
+# 재접속 (그룹 적용)
+```
+
+**Docker Compose 플러그인 설치**
+```bash
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+    -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+```
+
+**코드 받기 및 기동**
+```bash
+git clone https://<TOKEN>@github.com/sweetpark/prowler.git
+cd prowler
+cp backend/.env.example backend/.env
+vi backend/.env  # ANTHROPIC_API_KEY 입력
+docker compose up -d
+```
+
+| 서비스 | 접속 주소 |
+|--------|----------|
+| 프론트엔드 | http://\<EC2-IP\>:3000 |
+| 백엔드 API | http://\<EC2-IP\>:8000 |
+| API 문서 | http://\<EC2-IP\>:8000/docs |
+
+> EC2 보안그룹 인바운드에 **3000, 8000** 포트를 열어야 합니다.
+
 | 서비스 | 접속 주소 |
 |--------|----------|
 | 프론트엔드 | http://localhost:3000 |
@@ -237,6 +272,7 @@ aws configure
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=...
 ```
+
 
 ---
 
