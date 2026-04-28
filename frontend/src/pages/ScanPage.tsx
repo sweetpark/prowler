@@ -179,9 +179,13 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
         </div>
 
         {/* 서비스 선택 */}
-        <div className="mb-6">
+        <div className={`mb-6 ${selectedCompliance ? 'opacity-40 pointer-events-none' : ''}`}>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            서비스 선택 <span className="text-gray-400 font-normal">(선택 안하면 전체)</span>
+            서비스 선택{' '}
+            {selectedCompliance
+              ? <span className="text-amber-500 font-normal">(컴플라이언스 선택 시 사용 불가)</span>
+              : <span className="text-gray-400 font-normal">(선택 안하면 전체)</span>
+            }
           </label>
           <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
             {services.map(svc => (
@@ -198,7 +202,7 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
               </button>
             ))}
           </div>
-          {selectedServices.length > 0 && (
+          {selectedServices.length > 0 && !selectedCompliance && (
             <p className="text-xs text-blue-600 mt-1">
               선택됨: {selectedServices.join(', ')}
             </p>
