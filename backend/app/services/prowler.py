@@ -128,6 +128,9 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
         scan.json_path = json_path
         await upsert_scan(_scan_to_dict(scan))
 
+        # 메모리에서 findings 제거 — 조회 시 JSON 파일에서 lazy load
+        scan.findings = []
+
     except FileNotFoundError:
         logger.error(f"[{scan_id}] prowler 명령어를 찾을 수 없습니다. 설치 여부를 확인하세요.")
         scan.status = ScanStatus.FAILED
