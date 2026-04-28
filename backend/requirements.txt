@@ -7,3 +7,4 @@ pydantic-settings==2.6.1
 aiofiles==24.1.0
 python-multipart==0.0.20
 httpx==0.28.1
+aiosqlite==0.20.0

@@ -9,6 +9,7 @@ services:
       - ./backend/.env
     volumes:
       - prowler_results:/tmp/prowler_results
+      - prowler_data:/app/data
       # AWS 자격증명 마운트 (로컬 개발용)
       - ~/.aws:/root/.aws:ro
     restart: unless-stopped
@@ -23,3 +24,4 @@ services:
 
 volumes:
   prowler_results:
+  prowler_data:

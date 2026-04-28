@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from app.core.config import settings
+from app.db import load_all_scans, load_findings_json, save_findings_json, upsert_scan
 from app.models.scan import (
     FindingSummary,
     ScanRequest,
@@ -19,12 +20,34 @@ from app.services.translation import translate_findings_batch
 
 logger = logging.getLogger(__name__)
 
-# 메모리 내 스캔 상태 저장소 (프로덕션에서는 DB/Redis 사용)
 _scans: Dict[str, ScanResult] = {}
 
 
+async def restore_scans_from_db() -> None:
+    """서버 기동 시 DB에서 스캔 이력을 복원합니다."""
+    rows = await load_all_scans()
+    for row in rows:
+        scan = _row_to_scan_result(row)
+        _scans[scan.scan_id] = scan
+    logger.info(f"DB에서 스캔 이력 {len(rows)}건 복원 완료")
+
+
 def get_scan(scan_id: str) -> Optional[ScanResult]:
-    return _scans.get(scan_id)
+    scan = _scans.get(scan_id)
+    if scan and scan.status == ScanStatus.COMPLETED and not scan.findings:
+        _load_findings_into_scan(scan)
+    return scan
+
+
+def _load_findings_into_scan(scan: ScanResult) -> None:
+    if not scan.json_path:
+        return
+    raw_findings = load_findings_json(scan.json_path)
+    scan.findings = [
+        FindingSummary(**{k: v for k, v in f.items() if k != "raw"})
+        for f in raw_findings
+        if f
+    ]
 
 
 def list_scans() -> list[ScanResult]:
@@ -42,6 +65,7 @@ async def start_scan(request: ScanRequest) -> str:
         started_at=datetime.now(),
     )
     _scans[scan_id] = scan_result
+    await upsert_scan(_scan_to_dict(scan_result))
 
     # 백그라운드에서 실행
     asyncio.create_task(_run_prowler(scan_id, request))
@@ -77,6 +101,7 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
             scan.status = ScanStatus.FAILED
             scan.error_message = stderr.decode()[:500]
             scan.completed_at = datetime.now()
+            await upsert_scan(_scan_to_dict(scan))
             return
 
         # JSON 결과 파싱
@@ -95,16 +120,26 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
         scan.completed_at = datetime.now()
         logger.info(f"[{scan_id}] 스캔 완료: 전체={scan.total}, 통과={scan.passed}, 실패={scan.failed}")
 
+        # findings JSON 파일 저장 후 DB upsert
+        started_at_str = scan.started_at.isoformat() if scan.started_at else ""
+        json_path = save_findings_json(scan_id, [
+            {**f, "raw": None} for f in translated
+        ], started_at=started_at_str)
+        scan.json_path = json_path
+        await upsert_scan(_scan_to_dict(scan))
+
     except FileNotFoundError:
         logger.error(f"[{scan_id}] prowler 명령어를 찾을 수 없습니다. 설치 여부를 확인하세요.")
         scan.status = ScanStatus.FAILED
         scan.error_message = "prowler가 설치되지 않았습니다. 'pip install prowler'로 설치하세요."
         scan.completed_at = datetime.now()
+        await upsert_scan(_scan_to_dict(scan))
     except Exception as e:
         logger.exception(f"[{scan_id}] 스캔 오류: {e}")
         scan.status = ScanStatus.FAILED
         scan.error_message = str(e)
         scan.completed_at = datetime.now()
+        await upsert_scan(_scan_to_dict(scan))
 
 
 def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
@@ -341,3 +376,49 @@ def _aggregate_results(scan: ScanResult, findings: list[dict], compliance: Optio
 
     scan.account_ids = sorted(account_ids_set)
     scan.regions = sorted(regions_set)
+
+
+def _scan_to_dict(scan: ScanResult) -> dict:
+    return {
+        "scan_id":          scan.scan_id,
+        "status":           scan.status.value,
+        "provider":         scan.provider,
+        "started_at":       scan.started_at.isoformat() if scan.started_at else None,
+        "completed_at":     scan.completed_at.isoformat() if scan.completed_at else None,
+        "error_message":    scan.error_message,
+        "total":            scan.total,
+        "passed":           scan.passed,
+        "failed":           scan.failed,
+        "error_count":      scan.error_count,
+        "compliance":       scan.compliance,
+        "regions":          scan.regions,
+        "account_ids":      scan.account_ids,
+        "severity_summary": scan.severity_summary,
+        "services_summary": scan.services_summary,
+        "json_path":        scan.json_path,
+    }
+
+
+def _row_to_scan_result(row: dict) -> ScanResult:
+    from datetime import datetime as dt
+    def _parse_dt(val):
+        return dt.fromisoformat(val) if val else None
+
+    return ScanResult(
+        scan_id=row["scan_id"],
+        status=ScanStatus(row["status"]),
+        provider=row["provider"],
+        started_at=_parse_dt(row.get("started_at")),
+        completed_at=_parse_dt(row.get("completed_at")),
+        error_message=row.get("error_message"),
+        total=row.get("total", 0),
+        passed=row.get("passed", 0),
+        failed=row.get("failed", 0),
+        error_count=row.get("error_count", 0),
+        compliance=row.get("compliance"),
+        regions=row.get("regions", []),
+        account_ids=row.get("account_ids", []),
+        severity_summary=row.get("severity_summary", {}),
+        services_summary=row.get("services_summary", {}),
+        json_path=row.get("json_path"),
+    )

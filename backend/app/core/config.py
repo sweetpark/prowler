@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Prowler settings
     prowler_output_dir: str = "/tmp/prowler_results"
 
+    # 영구 저장 경로
+    results_dir: str = "/app/data/results"
+    db_path: str = "/app/data/scans.db"
+
     # AWS credentials (선택적 - IAM Role 사용 시 불필요)
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None

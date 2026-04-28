@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from datetime import datetime
@@ -65,6 +65,7 @@ class ScanResult(BaseModel):
     compliance: Optional[str] = None
     account_ids: List[str] = []
     regions: List[str] = []
+    json_path: Optional[str] = Field(default=None, exclude=True)  # API 응답에서 제외
 
 
 class DashboardStats(BaseModel):

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, PlayCircle, Languages, AlertCircle } from 'lucide-react';
+import { Shield, LayoutDashboard, PlayCircle, History, Languages, AlertCircle } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ScanPage from './pages/ScanPage';
+import ScanHistory from './pages/ScanHistory';
 import { getConfig, ServerConfig } from './api/client';
 
-type Page = 'dashboard' | 'scan';
+type Page = 'dashboard' | 'scan' | 'history';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -16,14 +17,21 @@ export default function App() {
       .catch(() => setConfig({ translation_enabled: false, claude_model: null }));
   }, []);
 
-  const pageTitle = page === 'dashboard' ? '클라우드 보안 현황' : 'Prowler 스캔 실행';
-  const pageDesc = page === 'dashboard'
-    ? config?.translation_enabled
-      ? '최근 스캔 결과를 한국어로 확인하세요'
-      : '최근 스캔 결과를 확인하세요 (영문 모드)'
-    : config?.translation_enabled
-      ? '보안 점검을 실행하고 한국어 결과를 확인하세요'
-      : '보안 점검을 실행하세요 (한국어 번역 비활성화)';
+  const PAGE_META: Record<Page, { title: string; desc: string }> = {
+    dashboard: {
+      title: '클라우드 보안 현황',
+      desc: config?.translation_enabled ? '최근 스캔 결과를 한국어로 확인하세요' : '최근 스캔 결과를 확인하세요 (영문 모드)',
+    },
+    scan: {
+      title: 'Prowler 스캔 실행',
+      desc: config?.translation_enabled ? '보안 점검을 실행하고 한국어 결과를 확인하세요' : '보안 점검을 실행하세요 (한국어 번역 비활성화)',
+    },
+    history: {
+      title: '스캔 이력',
+      desc: '이번 세션에서 실행한 스캔 결과 목록입니다',
+    },
+  };
+  const { title: pageTitle, desc: pageDesc } = PAGE_META[page];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -78,6 +86,12 @@ export default function App() {
                 active={page === 'scan'}
                 onClick={() => setPage('scan')}
               />
+              <NavButton
+                icon={<History className="h-4 w-4" />}
+                label="스캔 이력"
+                active={page === 'history'}
+                onClick={() => setPage('history')}
+              />
             </nav>
           </div>
         </div>
@@ -90,7 +104,9 @@ export default function App() {
           <p className="text-sm text-gray-500 mt-0.5">{pageDesc}</p>
         </div>
 
-        {page === 'dashboard' ? <Dashboard /> : <ScanPage translationEnabled={config?.translation_enabled ?? true} />}
+        {page === 'dashboard' && <Dashboard />}
+        {page === 'scan' && <ScanPage translationEnabled={config?.translation_enabled ?? true} />}
+        {page === 'history' && <ScanHistory />}
       </main>
     </div>
   );
