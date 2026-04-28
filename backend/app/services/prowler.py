@@ -155,20 +155,20 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
         "--no-banner",
     ]
 
-    if request.services:
-        cmd.extend(["--service"] + request.services)
-
-    if request.checks:
-        cmd.extend(["--check"] + request.checks)
+    # --compliance와 --service는 동시 사용 불가
+    if request.compliance:
+        cmd.extend(["--compliance", request.compliance])
+    else:
+        if request.services:
+            cmd.extend(["--service"] + request.services)
+        if request.checks:
+            cmd.extend(["--check"] + request.checks)
 
     if request.severity:
         cmd.extend(["--severity"] + [s.value for s in request.severity])
 
     if request.region and request.provider == "aws":
         cmd.extend(["--region", request.region])
-
-    if request.compliance:
-        cmd.extend(["--compliance", request.compliance])
 
     return cmd
 
