@@ -2,6 +2,24 @@ import { useEffect, useState } from 'react';
 import { Play, Loader2, CheckCircle2, XCircle, Clock, X } from 'lucide-react';
 import { startScan, getScan, getServices, getCompliances, ScanResult, ComplianceItem } from '../api/client';
 
+const AWS_REGIONS = [
+  { value: '',               label: '전체 리전' },
+  { value: 'ap-northeast-2', label: 'ap-northeast-2 (서울)' },
+  { value: 'ap-northeast-1', label: 'ap-northeast-1 (도쿄)' },
+  { value: 'ap-southeast-1', label: 'ap-southeast-1 (싱가포르)' },
+  { value: 'ap-southeast-2', label: 'ap-southeast-2 (시드니)' },
+  { value: 'ap-south-1',     label: 'ap-south-1 (뭄바이)' },
+  { value: 'us-east-1',      label: 'us-east-1 (버지니아)' },
+  { value: 'us-east-2',      label: 'us-east-2 (오하이오)' },
+  { value: 'us-west-1',      label: 'us-west-1 (캘리포니아)' },
+  { value: 'us-west-2',      label: 'us-west-2 (오레곤)' },
+  { value: 'eu-west-1',      label: 'eu-west-1 (아일랜드)' },
+  { value: 'eu-west-2',      label: 'eu-west-2 (런던)' },
+  { value: 'eu-central-1',   label: 'eu-central-1 (프랑크푸르트)' },
+  { value: 'ca-central-1',   label: 'ca-central-1 (캐나다)' },
+  { value: 'sa-east-1',      label: 'sa-east-1 (상파울루)' },
+];
+
 const SEVERITY_OPTIONS = [
   { value: 'critical', label: '심각 (Critical)' },
   { value: 'high',     label: '높음 (High)' },
@@ -21,7 +39,7 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
   const [services, setServices] = useState<string[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [selectedSeverity, setSelectedSeverity] = useState<string[]>([]);
-  const [region, setRegion] = useState('');
+  const [region, setRegion] = useState('ap-northeast-2');
   const [scanning, setScanning] = useState(false);
   const [currentScan, setCurrentScan] = useState<ScanResult | null>(null);
   const [pollInterval, setPollInterval] = useState<ReturnType<typeof setInterval> | null>(null);
@@ -90,13 +108,15 @@ export default function ScanPage({ translationEnabled = true }: { translationEna
         {/* 리전 */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">AWS 리전</label>
-          <input
-            type="text"
+          <select
             value={region}
             onChange={e => setRegion(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="ap-northeast-2"
-          />
+            className="border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            {AWS_REGIONS.map(r => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* 심각도 필터 */}
