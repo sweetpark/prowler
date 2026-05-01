@@ -76,7 +76,7 @@ export default function ScanHistory() {
     <div className="space-y-4">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">총 {scans.length}건 · 서버 재시작 시 초기화됩니다</p>
+        <p className="text-sm text-gray-500">총 {scans.length}건 · SQLite에 영구 저장됩니다</p>
         <button
           onClick={fetchScans}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors"
@@ -114,10 +114,10 @@ export default function ScanHistory() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.badge}`}>
                         {cfg.label}
                       </span>
-                      {scan.compliance && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
-                          {scan.compliance}
-                        </span>
+                      {scan.compliance && scan.compliance.length > 0 && (
+                        scan.compliance.length === 1
+                          ? <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{scan.compliance[0]}</span>
+                          : <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{scan.compliance.length}개 프레임워크</span>
                       )}
                       <span className="text-xs text-gray-400 font-mono truncate">
                         {scan.scan_id.slice(0, 8)}...

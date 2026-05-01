@@ -20,12 +20,12 @@ class ScanSeverity(str, Enum):
 
 
 class ScanRequest(BaseModel):
-    provider: str = Field(default="aws", description="클라우드 제공자 (aws, azure, gcp)")
+    provider: str = Field(default="aws", description="클라우드 제공자 (aws, azure, gcp, oci, kubernetes, m365, github)")
     services: Optional[List[str]] = Field(default=None, description="점검할 서비스 목록 (없으면 전체)")
     checks: Optional[List[str]] = Field(default=None, description="점검할 항목 목록")
     severity: Optional[List[ScanSeverity]] = Field(default=None, description="점검할 심각도 필터")
-    region: Optional[str] = Field(default=None, description="AWS 리전")
-    compliance: Optional[str] = Field(default=None, description="컴플라이언스 프레임워크")
+    region: Optional[str] = Field(default=None, description="AWS/OCI 리전")
+    compliance: Optional[List[str]] = Field(default=None, description="컴플라이언스 프레임워크 목록")
 
 
 class FindingSummary(BaseModel):
@@ -62,7 +62,7 @@ class ScanResult(BaseModel):
     findings: List[FindingSummary] = []
     services_summary: Dict[str, Dict[str, int]] = {}
     severity_summary: Dict[str, int] = {}
-    compliance: Optional[str] = None
+    compliance: Optional[List[str]] = None
     account_ids: List[str] = []
     regions: List[str] = []
     json_path: Optional[str] = Field(default=None, exclude=True)  # API 응답에서 제외

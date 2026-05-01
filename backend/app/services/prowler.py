@@ -115,7 +115,7 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
         translated = await translate_findings_batch(findings)
 
         # 결과 집계
-        _aggregate_results(scan, translated, compliance=request.compliance)
+        _aggregate_results(scan, translated, compliance=request.compliance or None)
         scan.status = ScanStatus.COMPLETED
         scan.completed_at = datetime.now()
         logger.info(f"[{scan_id}] 스캔 완료: 전체={scan.total}, 통과={scan.passed}, 실패={scan.failed}")
@@ -157,7 +157,7 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
 
     # --compliance와 --service는 동시 사용 불가
     if request.compliance:
-        cmd.extend(["--compliance", request.compliance])
+        cmd.extend(["--compliance"] + request.compliance)
     else:
         if request.services:
             cmd.extend(["--service"] + request.services)
@@ -167,8 +167,11 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
     if request.severity:
         cmd.extend(["--severity"] + [s.value for s in request.severity])
 
-    if request.region and request.provider == "aws":
-        cmd.extend(["--region", request.region])
+    if request.region:
+        if request.provider == "aws":
+            cmd.extend(["--region", request.region])
+        elif request.provider == "oci":
+            cmd.extend(["--region", request.region])
 
     return cmd
 
@@ -177,12 +180,59 @@ def _build_env() -> dict:
     """Prowler 실행에 필요한 환경변수를 구성합니다."""
     env = os.environ.copy()
 
+    # AWS
     if settings.aws_access_key_id:
         env["AWS_ACCESS_KEY_ID"] = settings.aws_access_key_id
     if settings.aws_secret_access_key:
         env["AWS_SECRET_ACCESS_KEY"] = settings.aws_secret_access_key
+    if settings.aws_session_token:
+        env["AWS_SESSION_TOKEN"] = settings.aws_session_token
     if settings.aws_default_region:
         env["AWS_DEFAULT_REGION"] = settings.aws_default_region
+
+    # Azure
+    if settings.azure_client_id:
+        env["AZURE_CLIENT_ID"] = settings.azure_client_id
+    if settings.azure_client_secret:
+        env["AZURE_CLIENT_SECRET"] = settings.azure_client_secret
+    if settings.azure_tenant_id:
+        env["AZURE_TENANT_ID"] = settings.azure_tenant_id
+    if settings.azure_subscription_id:
+        env["AZURE_SUBSCRIPTION_ID"] = settings.azure_subscription_id
+
+    # GCP
+    if settings.google_application_credentials:
+        env["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+    if settings.google_cloud_project:
+        env["GOOGLE_CLOUD_PROJECT"] = settings.google_cloud_project
+
+    # OCI
+    if settings.oci_cli_user:
+        env["OCI_CLI_USER"] = settings.oci_cli_user
+    if settings.oci_cli_tenancy:
+        env["OCI_CLI_TENANCY"] = settings.oci_cli_tenancy
+    if settings.oci_cli_fingerprint:
+        env["OCI_CLI_FINGERPRINT"] = settings.oci_cli_fingerprint
+    if settings.oci_cli_key_file:
+        env["OCI_CLI_KEY_FILE"] = settings.oci_cli_key_file
+    if settings.oci_cli_region:
+        env["OCI_CLI_REGION"] = settings.oci_cli_region
+
+    # Kubernetes
+    if settings.kubeconfig:
+        env["KUBECONFIG"] = settings.kubeconfig
+
+    # M365
+    if settings.m365_client_id:
+        env["M365_CLIENT_ID"] = settings.m365_client_id
+    if settings.m365_client_secret:
+        env["M365_CLIENT_SECRET"] = settings.m365_client_secret
+    if settings.m365_tenant_id:
+        env["M365_TENANT_ID"] = settings.m365_tenant_id
+
+    # GitHub
+    if settings.github_token:
+        env["GITHUB_TOKEN"] = settings.github_token
 
     return env
 
@@ -308,7 +358,7 @@ def _parse_finding(item: dict) -> Optional[dict]:
         return None
 
 
-def _aggregate_results(scan: ScanResult, findings: list[dict], compliance: Optional[str] = None) -> None:
+def _aggregate_results(scan: ScanResult, findings: list[dict], compliance: Optional[list] = None) -> None:
     """스캔 결과를 집계합니다."""
     scan.findings = []
     scan.total = len(findings)

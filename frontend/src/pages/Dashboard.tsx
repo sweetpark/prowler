@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar,
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { ShieldAlert, ShieldCheck, AlertTriangle, Activity } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, AlertTriangle, Activity, ArrowRight, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react';
 import { getDashboard, getScans, getScan, DashboardStats, FindingSummary, ScanResult } from '../api/client';
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -28,9 +28,10 @@ const STATUS_BADGE: Record<string, string> = {
   ERROR: 'bg-gray-100 text-gray-700',
 };
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigate }: { onNavigate?: (page: 'history') => void }) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [latestScan, setLatestScan] = useState<ScanResult | null>(null);
+  const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
@@ -46,14 +47,14 @@ export default function Dashboard() {
       const [dashRes, scansRes] = await Promise.all([getDashboard(), getScans()]);
       setStats(dashRes.data);
 
-      const completed = scansRes.data
-        .filter(s => s.status === 'completed')
-        .sort((a, b) => {
-          const ta = a.completed_at ?? a.started_at ?? '';
-          const tb = b.completed_at ?? b.started_at ?? '';
-          return tb.localeCompare(ta);
-        });
+      const allSorted = scansRes.data.sort((a, b) => {
+        const ta = a.started_at ?? '';
+        const tb = b.started_at ?? '';
+        return tb.localeCompare(ta);
+      });
+      setRecentScans(allSorted.slice(0, 5));
 
+      const completed = allSorted.filter(s => s.status === 'completed');
       if (completed.length > 0) {
         const fullScan = await getScan(completed[0].scan_id);
         setLatestScan(fullScan.data);
@@ -154,12 +155,14 @@ export default function Dashboard() {
         </div>
 
         {/* Compliance 표시 (읽기 전용) */}
-        {latestScan?.compliance && (
-          <div className="flex items-center gap-2">
+        {latestScan?.compliance && latestScan.compliance.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-sm font-medium text-gray-600 whitespace-nowrap">컴플라이언스</label>
-            <span className="text-sm px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
-              {latestScan.compliance} <span className="text-blue-400 text-xs">(스캔 설정)</span>
-            </span>
+            {latestScan.compliance.map(c => (
+              <span key={c} className="text-sm px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
+                {c}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -252,6 +255,64 @@ export default function Dashboard() {
             <p className="text-sm text-gray-400 text-center py-8">선택한 필터에 해당하는 실패 항목이 없습니다.</p>
           )}
         </div>
+      </div>
+
+      {/* 최근 스캔 이력 요약 */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-800">최근 스캔 이력</h3>
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('history')}
+              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              전체 이력 보기 <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {recentScans.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">스캔 이력이 없습니다.</p>
+        ) : (
+          <div className="divide-y">
+            {recentScans.map(scan => {
+              const passRate = scan.total > 0 ? Math.round((scan.passed / scan.total) * 100) : 0;
+              const statusIcon = {
+                pending:   <Clock className="h-4 w-4 text-gray-400" />,
+                running:   <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />,
+                completed: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+                failed:    <XCircle className="h-4 w-4 text-red-500" />,
+              }[scan.status];
+              return (
+                <div key={scan.scan_id} className="px-6 py-3 flex items-center gap-4">
+                  {statusIcon}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono text-gray-500">{scan.scan_id.slice(0, 8)}...</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-medium">
+                        {scan.provider?.toUpperCase()}
+                      </span>
+                      {scan.compliance && scan.compliance.length > 0 && (
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                          {scan.compliance.length === 1 ? scan.compliance[0] : `${scan.compliance.length}개 프레임워크`}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {scan.started_at ? new Date(scan.started_at).toLocaleString('ko-KR') : '-'}
+                    </p>
+                  </div>
+                  {scan.status === 'completed' && (
+                    <div className="flex items-center gap-4 text-sm shrink-0">
+                      <span className="text-gray-500">{scan.total}건</span>
+                      <span className="text-green-600 font-medium">{passRate}% 통과</span>
+                      <span className="text-red-600 font-medium">{scan.failed} 실패</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

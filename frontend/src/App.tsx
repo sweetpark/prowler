@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, PlayCircle, History, Languages, AlertCircle } from 'lucide-react';
+import { Shield, LayoutDashboard, PlayCircle, History, Languages, AlertCircle, ListChecks } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ScanPage from './pages/ScanPage';
 import ScanHistory from './pages/ScanHistory';
+import CheckList from './pages/CheckList';
 import { getConfig, ServerConfig } from './api/client';
 
-type Page = 'dashboard' | 'scan' | 'history';
+type Page = 'dashboard' | 'scan' | 'history' | 'checks';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -14,7 +15,7 @@ export default function App() {
   useEffect(() => {
     getConfig()
       .then((res) => setConfig(res.data))
-      .catch(() => setConfig({ translation_enabled: false, claude_model: null }));
+      .catch(() => setConfig({ translation_enabled: false, claude_model: null, available_providers: ['aws'] }));
   }, []);
 
   const PAGE_META: Record<Page, { title: string; desc: string }> = {
@@ -28,14 +29,17 @@ export default function App() {
     },
     history: {
       title: '스캔 이력',
-      desc: '이번 세션에서 실행한 스캔 결과 목록입니다',
+      desc: '저장된 전체 스캔 결과 목록입니다',
+    },
+    checks: {
+      title: '점검 항목 목록',
+      desc: '프레임워크 및 서비스별 점검 항목을 확인하세요',
     },
   };
   const { title: pageTitle, desc: pageDesc } = PAGE_META[page];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 번역 비활성화 안내 배너 */}
       {config && !config.translation_enabled && (
         <div className="bg-amber-50 border-b border-amber-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 text-sm text-amber-700">
@@ -48,18 +52,15 @@ export default function App() {
         </div>
       )}
 
-      {/* 헤더 */}
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
-            {/* 로고 */}
             <div className="flex items-center gap-2.5">
               <Shield className="h-7 w-7 text-blue-600" />
               <div>
                 <span className="font-bold text-gray-900 text-lg">Prowler</span>
                 <span className="ml-1.5 text-sm text-gray-400">보안 대시보드</span>
               </div>
-              {/* 번역 상태 뱃지 */}
               {config && (
                 <span className={`ml-2 flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                   config.translation_enabled
@@ -72,7 +73,6 @@ export default function App() {
               )}
             </div>
 
-            {/* 네비게이션 */}
             <nav className="flex gap-1">
               <NavButton
                 icon={<LayoutDashboard className="h-4 w-4" />}
@@ -92,21 +92,32 @@ export default function App() {
                 active={page === 'history'}
                 onClick={() => setPage('history')}
               />
+              <NavButton
+                icon={<ListChecks className="h-4 w-4" />}
+                label="점검 항목"
+                active={page === 'checks'}
+                onClick={() => setPage('checks')}
+              />
             </nav>
           </div>
         </div>
       </header>
 
-      {/* 메인 컨텐츠 */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900">{pageTitle}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{pageDesc}</p>
         </div>
 
-        {page === 'dashboard' && <Dashboard />}
-        {page === 'scan' && <ScanPage translationEnabled={config?.translation_enabled ?? true} />}
+        {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
+        {page === 'scan' && (
+          <ScanPage
+            translationEnabled={config?.translation_enabled ?? true}
+            availableProviders={config?.available_providers ?? ['aws']}
+          />
+        )}
         {page === 'history' && <ScanHistory />}
+        {page === 'checks' && <CheckList />}
       </main>
     </div>
   );

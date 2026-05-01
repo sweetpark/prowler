@@ -80,7 +80,7 @@ async def upsert_scan(scan_dict: dict) -> None:
                 "passed":           scan_dict.get("passed", 0),
                 "failed":           scan_dict.get("failed", 0),
                 "error_count":      scan_dict.get("error_count", 0),
-                "compliance":       scan_dict.get("compliance"),
+                "compliance":       json.dumps(scan_dict.get("compliance"), ensure_ascii=False) if scan_dict.get("compliance") is not None else None,
                 "regions":          json.dumps(scan_dict.get("regions", []), ensure_ascii=False),
                 "account_ids":      json.dumps(scan_dict.get("account_ids", []), ensure_ascii=False),
                 "severity_summary": json.dumps(scan_dict.get("severity_summary", {}), ensure_ascii=False),
@@ -104,6 +104,16 @@ async def load_all_scans() -> list[dict]:
         item["account_ids"]      = json.loads(item["account_ids"] or "[]")
         item["severity_summary"] = json.loads(item["severity_summary"] or "{}")
         item["services_summary"] = json.loads(item["services_summary"] or "{}")
+        # compliance: 구버전(문자열) / 신버전(JSON 배열) 모두 처리
+        raw_compliance = item.get("compliance")
+        if raw_compliance:
+            try:
+                parsed = json.loads(raw_compliance)
+                item["compliance"] = parsed if isinstance(parsed, list) else [parsed]
+            except (json.JSONDecodeError, TypeError):
+                item["compliance"] = [raw_compliance]
+        else:
+            item["compliance"] = None
         result.append(item)
 
     return result

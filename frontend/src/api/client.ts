@@ -1,7 +1,5 @@
 import axios from 'axios';
 
-// Docker 배포 시 nginx가 /api/ 프록시 처리 → 빈 문자열(상대경로)
-// 로컬 개발 시 VITE_API_URL=http://localhost:8000 (.env.local에 설정)
 const BASE_URL = import.meta.env.VITE_API_URL ?? '';
 
 export const api = axios.create({
@@ -15,7 +13,7 @@ export interface ScanRequest {
   checks?: string[];
   severity?: string[];
   region?: string;
-  compliance?: string;
+  compliance?: string[];
 }
 
 export interface FindingSummary {
@@ -51,7 +49,7 @@ export interface ScanResult {
   findings: FindingSummary[];
   services_summary: Record<string, Record<string, number>>;
   severity_summary: Record<string, number>;
-  compliance?: string;
+  compliance?: string[];
   account_ids: string[];
   regions: string[];
 }
@@ -76,9 +74,9 @@ export interface DashboardStats {
 export interface ServerConfig {
   translation_enabled: boolean;
   claude_model: string | null;
+  available_providers: string[];
 }
 
-// API 함수들
 export const getConfig = () =>
   api.get<ServerConfig>('/api/config');
 
@@ -91,11 +89,18 @@ export const getScan = (scanId: string) =>
 export const getDashboard = () =>
   api.get<DashboardStats>('/api/dashboard');
 
-export const getServices = () =>
-  api.get<{ services: string[] }>('/api/services');
+export const getServices = (provider = 'aws') =>
+  api.get<{ services: string[]; provider: string }>(`/api/services?provider=${provider}`);
 
 export const getScans = () =>
   api.get<ScanResult[]>('/api/scans');
 
 export const getCompliances = () =>
   api.get<{ compliances: Record<string, ComplianceItem[]> }>('/api/compliances');
+
+export const getChecks = (provider = 'aws', compliance?: string, service?: string) => {
+  const params = new URLSearchParams({ provider });
+  if (compliance) params.set('compliance', compliance);
+  if (service) params.set('service', service);
+  return api.get<{ checks: string[]; total: number; provider: string; error?: string }>(`/api/checks?${params}`);
+};
