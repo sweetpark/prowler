@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Search, RefreshCw, Loader2, ListChecks } from 'lucide-react';
-import { getCompliances, getServices, getChecks, ComplianceItem } from '../api/client';
+import { Search, RefreshCw, Loader2, ListChecks, ChevronDown, ChevronRight, Terminal, ExternalLink } from 'lucide-react';
+import { getCompliances, getServices, getChecks, ComplianceItem, CheckItem } from '../api/client';
 
 const PROVIDER_OPTIONS = [
   { value: 'aws',        label: 'AWS' },
   { value: 'azure',      label: 'Azure' },
   { value: 'gcp',        label: 'GCP' },
-  { value: 'oci',        label: 'OCI (Oracle)' },
+  { value: 'oraclecloud', label: 'OCI (Oracle Cloud)' },
   { value: 'kubernetes', label: 'Kubernetes' },
   { value: 'm365',       label: 'M365' },
   { value: 'github',     label: 'GitHub' },
@@ -18,7 +18,7 @@ export default function CheckList() {
   const [services, setServices] = useState<string[]>([]);
   const [selectedCompliance, setSelectedCompliance] = useState('');
   const [selectedService, setSelectedService] = useState('');
-  const [checks, setChecks] = useState<string[]>([]);
+  const [checks, setChecks] = useState<CheckItem[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -44,12 +44,15 @@ export default function CheckList() {
         provider,
         selectedCompliance || undefined,
         selectedService || undefined,
+        true,  // detail=true: description, risk, remediation 포함
       );
       setChecks(res.data.checks);
       setTotal(res.data.total);
       if (res.data.error) setError(res.data.error);
-    } catch {
-      setError('점검 항목 조회 실패');
+    } catch (err: unknown) {
+      console.error('[CheckList] 점검 항목 조회 실패:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`점검 항목 조회 실패: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -57,7 +60,9 @@ export default function CheckList() {
 
   const currentCompliances = compliancesByProvider[provider] ?? [];
   const filteredChecks = checks.filter(c =>
-    c.toLowerCase().includes(searchText.toLowerCase())
+    c.check_id.toLowerCase().includes(searchText.toLowerCase()) ||
+    c.title.toLowerCase().includes(searchText.toLowerCase()) ||
+    c.service.toLowerCase().includes(searchText.toLowerCase())
   );
 
   return (
@@ -179,24 +184,105 @@ export default function CheckList() {
             </p>
           ) : (
             <div className="divide-y max-h-[60vh] overflow-y-auto">
-              {filteredChecks.map((check, i) => {
-                const parts = check.split('_');
-                const service = parts[0] ?? '';
-                return (
-                  <div key={i} className="px-6 py-3 flex items-center gap-3 hover:bg-gray-50">
-                    <span className="text-xs w-8 text-right text-gray-300 shrink-0">{i + 1}</span>
-                    <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono shrink-0">
-                      {service.toUpperCase()}
-                    </span>
-                    <span className="text-sm font-mono text-gray-700 truncate">{check}</span>
-                  </div>
-                );
-              })}
+              {filteredChecks.map((check, i) => (
+                <CheckRow key={i} index={i} check={check} />
+              ))}
               {filteredChecks.length < checks.length && (
                 <p className="text-xs text-gray-400 text-center py-3">
                   {filteredChecks.length}건 표시 / 전체 {checks.length}건
                 </p>
               )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SEVERITY_STYLE: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700',
+  high:     'bg-orange-100 text-orange-700',
+  medium:   'bg-yellow-100 text-yellow-700',
+  low:      'bg-blue-100 text-blue-700',
+};
+
+function CheckRow({ index, check }: { index: number; check: CheckItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = !!(check.description || check.risk || check.remediation_text);
+
+  return (
+    <div className="hover:bg-gray-50">
+      {/* 요약 행 */}
+      <div
+        className={`px-6 py-3 flex items-start gap-3 ${hasDetail ? 'cursor-pointer' : ''}`}
+        onClick={() => hasDetail && setExpanded(v => !v)}
+      >
+        <span className="text-xs w-8 text-right text-gray-300 shrink-0 mt-0.5">{index + 1}</span>
+        {hasDetail ? (
+          expanded
+            ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+            : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
+        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono shrink-0 mt-0.5">
+          {check.service.toUpperCase()}
+        </span>
+        <span className={`text-xs px-2 py-0.5 rounded shrink-0 mt-0.5 font-medium ${SEVERITY_STYLE[check.severity] ?? 'bg-gray-100 text-gray-500'}`}>
+          {check.severity}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm text-gray-800 font-medium">{check.title}</p>
+          <p className="text-xs text-gray-400 font-mono mt-0.5">{check.check_id}</p>
+        </div>
+      </div>
+
+      {/* 펼쳐보기 상세 */}
+      {expanded && (
+        <div className="px-6 pb-5 ml-16 space-y-4 text-sm border-t bg-gray-50">
+          {check.description && (
+            <div className="pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">설명</p>
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{check.description}</p>
+            </div>
+          )}
+          {check.risk && (
+            <div>
+              <p className="text-xs font-semibold text-orange-500 uppercase mb-1">위험</p>
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{check.risk}</p>
+            </div>
+          )}
+          {check.remediation_text && (
+            <div>
+              <p className="text-xs font-semibold text-green-600 uppercase mb-1">조치 방법</p>
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{check.remediation_text}</p>
+            </div>
+          )}
+          {check.remediation_cli && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <Terminal className="h-3 w-3" /> CLI
+              </p>
+              <code className="block bg-gray-800 text-green-400 text-xs rounded px-3 py-2 whitespace-pre-wrap">
+                {check.remediation_cli}
+              </code>
+            </div>
+          )}
+          {(check.remediation_url || (check.additional_urls ?? []).length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {check.remediation_url && (
+                <a href={check.remediation_url} target="_blank" rel="noreferrer"
+                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                  <ExternalLink className="h-3 w-3" /> 공식 가이드
+                </a>
+              )}
+              {(check.additional_urls ?? []).map((url, i) => (
+                <a key={i} href={url} target="_blank" rel="noreferrer"
+                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                  <ExternalLink className="h-3 w-3" /> 참고 {i + 1}
+                </a>
+              ))}
             </div>
           )}
         </div>

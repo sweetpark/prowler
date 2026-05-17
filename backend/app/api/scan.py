@@ -69,18 +69,60 @@ async def get_dashboard():
     )
 
 
+def _load_check_metadata(provider: str, check_id: str) -> dict:
+    """prowler 패키지에서 check metadata.json을 직접 읽어 상세 정보를 반환합니다."""
+    import importlib.util, json
+    from pathlib import Path
+
+    # CLI provider명 → 패키지 디렉토리명 매핑
+    _PROVIDER_DIR = {
+        "oci":           "oraclecloud",
+        "oraclecloud":   "oraclecloud",
+        "googleworkspace": "googleworkspace",
+        "alibabacloud":  "alibabacloud",
+        "mongodbatlas":  "mongodbatlas",
+    }
+    pkg_provider = _PROVIDER_DIR.get(provider, provider)
+
+    try:
+        spec = importlib.util.find_spec(f"prowler.providers.{pkg_provider}.services")
+        if not spec or not spec.submodule_search_locations:
+            return {}
+        services_path = Path(list(spec.submodule_search_locations)[0])
+        # check_id 폴더 탐색 (서비스 폴더 → check 폴더)
+        for meta_file in services_path.rglob(f"{check_id}/{check_id}.metadata.json"):
+            data = json.loads(meta_file.read_text(encoding="utf-8"))
+            remediation = data.get("Remediation", {})
+            recommendation = remediation.get("Recommendation", {})
+            code = remediation.get("Code", {})
+            return {
+                "description": data.get("Description", ""),
+                "risk": data.get("Risk", ""),
+                "related_url": data.get("RelatedUrl", "") or "",
+                "additional_urls": data.get("AdditionalURLs", []),
+                "remediation_text": recommendation.get("Text", ""),
+                "remediation_url": recommendation.get("Url", ""),
+                "remediation_cli": code.get("CLI", ""),
+                "remediation_other": code.get("Other", ""),
+                "categories": data.get("Categories", []),
+                "resource_type": data.get("ResourceType", ""),
+            }
+    except Exception:
+        pass
+    return {}
+
+
 @router.get("/checks", summary="점검 항목 목록")
 async def get_available_checks(
     provider: str = Query(default="aws"),
     compliance: Optional[str] = Query(default=None),
     service: Optional[str] = Query(default=None),
+    detail: bool = Query(default=False, description="True이면 각 항목의 상세 메타데이터 포함"),
 ):
     import asyncio
     import re
 
-    # ANSI 이스케이프 코드 제거용 패턴
     _ansi = re.compile(r"\x1b\[[0-9;]*m")
-    # 체크 라인 파싱: [check_id] title - service [severity]
     _check_line = re.compile(r"^\[(\w+)\]\s+(.+?)\s+-\s+(\w+)\s+\[(\w+)\]")
 
     cmd = ["prowler", provider, "--list-checks", "--no-banner"]
@@ -102,12 +144,15 @@ async def get_available_checks(
             line = _ansi.sub("", raw_line).strip()
             m = _check_line.match(line)
             if m:
-                checks.append({
+                check = {
                     "check_id": m.group(1),
                     "title": m.group(2),
                     "service": m.group(3),
                     "severity": m.group(4).lower(),
-                })
+                }
+                if detail:
+                    check.update(_load_check_metadata(provider, m.group(1)))
+                checks.append(check)
 
         return {"checks": checks, "total": len(checks), "provider": provider}
     except FileNotFoundError:

@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-05-17] 점검항목 상세 조회 및 버그 수정
+
+### 1. 점검항목 상세 정보 표시
+
+**변경 파일**
+- `backend/app/api/scan.py` — `_load_check_metadata()` 함수 추가: prowler 패키지 내 `*.metadata.json` 파일을 직접 읽어 상세 정보 반환. `/api/checks`에 `detail=true` 쿼리 파라미터 추가
+- `frontend/src/api/client.ts` — `CheckItem` 인터페이스에 상세 필드 추가 (`description`, `risk`, `remediation_text`, `remediation_cli`, `additional_urls` 등). `getChecks()`에 `detail` 파라미터 추가
+- `frontend/src/pages/CheckList.tsx` — `CheckRow` 컴포넌트 추가: 클릭 시 설명·위험·조치방법·CLI 명령어·참고 URL 펼쳐보기
+
+**동작**
+- 점검항목 클릭 → 설명(Description), 위험(Risk), 조치방법, CLI 명령어, 공식 가이드 링크 표시
+- `detail=true` 파라미터로 상세 정보 선택적 로드 (미선택 시 기존 목록만 반환)
+
+---
+
+### 2. OCI 점검항목 상세 조회 안 되던 문제 수정
+
+**원인**: Prowler CLI provider명 `oci` ≠ 패키지 디렉토리명 `oraclecloud`
+
+**변경 파일**
+- `backend/app/api/scan.py` — `_load_check_metadata()`에 provider 이름 매핑 딕셔너리 추가 (`oci` → `oraclecloud` 등)
+- `frontend/src/pages/CheckList.tsx` — `PROVIDER_OPTIONS`에서 `value: 'oci'` → `value: 'oraclecloud'` 수정
+
+---
+
+### 3. `/api/checks` ANSI 파싱 오류 수정
+
+**원인**: `prowler --list-checks` 출력에 ANSI 컬러 코드 포함 + `not line.startswith("[")` 로 체크 라인 전부 필터 아웃
+
+**변경 파일**
+- `backend/app/api/scan.py` — ANSI 제거 정규식 적용, `[check_id] title - service [severity]` 구조로 파싱. `--no-banner` 추가
+- 응답 형식을 `string[]` → `{check_id, title, service, severity}` 객체 배열로 변경
+- `frontend/src/api/client.ts` / `CheckList.tsx` — 새 객체 형식에 맞게 타입 및 렌더링 수정
+
+---
+
+### 4. Docker 및 개발환경 설정 개선
+
+- `docker-compose.yml` — 프론트엔드 포트 `3000` → `3001` (Grafana 충돌 방지)
+- `frontend/Dockerfile` — `package-lock.json` 포함 + `npm ci` 사용 (일관성 보장)
+- `frontend/nginx.conf` — `proxy_read_timeout 300s` 추가 (긴 prowler 실행 대비)
+- `backend/app/core/config.py` — `db_path`/`results_dir` Docker 기본 경로 복원 (`/app/data`)
+- `backend/.env` — 로컬 개발용 경로 오버라이드 추가
+
+---
+
 ## [2026-05-01] 멀티 클라우드·다중 컴플라이언스·점검항목 조회 기능 추가
 
 ### 개요
