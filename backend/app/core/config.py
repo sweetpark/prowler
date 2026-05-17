@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Prowler settings
     prowler_output_dir: str = "/tmp/prowler_results"
 
-    # 영구 저장 경로
+    # 영구 저장 경로 (Docker 기본값: /app/data, 로컬은 .env에서 오버라이드)
     results_dir: str = "/app/data/results"
     db_path: str = "/app/data/scans.db"
 

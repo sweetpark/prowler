@@ -76,8 +76,14 @@ async def get_available_checks(
     service: Optional[str] = Query(default=None),
 ):
     import asyncio
+    import re
 
-    cmd = ["prowler", provider, "--list-checks"]
+    # ANSI 이스케이프 코드 제거용 패턴
+    _ansi = re.compile(r"\x1b\[[0-9;]*m")
+    # 체크 라인 파싱: [check_id] title - service [severity]
+    _check_line = re.compile(r"^\[(\w+)\]\s+(.+?)\s+-\s+(\w+)\s+\[(\w+)\]")
+
+    cmd = ["prowler", provider, "--list-checks", "--no-banner"]
     if compliance:
         cmd.extend(["--compliance", compliance])
     if service:
@@ -90,8 +96,19 @@ async def get_available_checks(
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
-        lines = stdout.decode().strip().split("\n")
-        checks = [line.strip() for line in lines if line.strip() and not line.startswith("[")]
+
+        checks = []
+        for raw_line in stdout.decode().splitlines():
+            line = _ansi.sub("", raw_line).strip()
+            m = _check_line.match(line)
+            if m:
+                checks.append({
+                    "check_id": m.group(1),
+                    "title": m.group(2),
+                    "service": m.group(3),
+                    "severity": m.group(4).lower(),
+                })
+
         return {"checks": checks, "total": len(checks), "provider": provider}
     except FileNotFoundError:
         return {"checks": [], "total": 0, "error": "prowler가 설치되지 않았습니다.", "provider": provider}
