@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, LayoutDashboard, PlayCircle, History, Languages, AlertCircle, ListChecks } from 'lucide-react';
+import { LayoutDashboard, PlayCircle, History, Languages, AlertCircle, ListChecks } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import ScanPage from './pages/ScanPage';
 import ScanHistory from './pages/ScanHistory';
@@ -55,12 +55,10 @@ export default function App() {
       <header className="bg-white border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2.5">
-              <Shield className="h-7 w-7 text-blue-600" />
-              <div>
-                <span className="font-bold text-gray-900 text-lg">Prowler</span>
-                <span className="ml-1.5 text-sm text-gray-400">보안 대시보드</span>
-              </div>
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="SK m&service" className="h-8 w-auto" />
+              <span className="text-sm text-gray-400 border-l pl-3">보안 대시보드</span>
+            </div>
               {config && (
                 <span className={`ml-2 flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                   config.translation_enabled
