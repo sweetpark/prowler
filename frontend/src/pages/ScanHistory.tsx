@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   CheckCircle2, XCircle, Clock, Loader2,
   ChevronDown, ChevronUp, RefreshCw,
-  Shield, MapPin, Server, Tag, AlertTriangle,
+  Shield, MapPin, Server, Tag, AlertTriangle, Search, X,
 } from 'lucide-react';
 import { getScans, getScan, ScanResult, FindingSummary } from '../api/client';
 
@@ -296,43 +296,183 @@ function ScanInfoPanel({ scan, compliances }: { scan: ScanResult; compliances: s
 }
 
 // ─────────────────────────────────────────────
-function FindingList({ findings }: { findings: FindingSummary[] }) {
-  const [filter, setFilter] = useState<'ALL' | 'FAIL' | 'PASS'>('FAIL');
+const PAGE_SIZE = 20;
 
-  const filtered = findings.filter(f => filter === 'ALL' || f.status === filter);
+function FindingList({ findings }: { findings: FindingSummary[] }) {
+  const [statusFilter, setStatusFilter]   = useState<'ALL' | 'FAIL' | 'PASS'>('FAIL');
+  const [serviceFilter, setServiceFilter] = useState<string>('ALL');
+  const [severityFilter, setSeverityFilter] = useState<string>('ALL');
+  const [keyword, setKeyword]             = useState('');
+  const [page, setPage]                   = useState(1);
+
+  // 서비스 목록 (findings 기반)
+  const services = Array.from(new Set(findings.map(f => f.service_name))).sort();
+  const severities = ['critical', 'high', 'medium', 'low', 'informational'];
+
+  const filtered = findings.filter(f => {
+    const statusOk   = statusFilter === 'ALL'   || f.status === statusFilter;
+    const serviceOk  = serviceFilter === 'ALL'  || f.service_name === serviceFilter;
+    const severityOk = severityFilter === 'ALL' || f.severity === severityFilter;
+    const kw = keyword.trim().toLowerCase();
+    const keywordOk  = !kw || [
+      f.check_title_ko, f.check_title, f.check_id,
+      f.service_name, f.resource_id, f.resource_arn,
+    ].some(v => v?.toLowerCase().includes(kw));
+    return statusOk && serviceOk && severityOk && keywordOk;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const resetFilters = () => {
+    setStatusFilter('FAIL'); setServiceFilter('ALL');
+    setSeverityFilter('ALL'); setKeyword(''); setPage(1);
+  };
+  const isFiltered = statusFilter !== 'FAIL' || serviceFilter !== 'ALL'
+    || severityFilter !== 'ALL' || keyword.trim() !== '';
+
+  // 필터 변경 시 1페이지로 이동
+  const wrap = (fn: () => void) => { fn(); setPage(1); };
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-700">점검 결과</h4>
-        <div className="flex gap-2">
+        <h4 className="text-sm font-semibold text-gray-700">
+          점검 결과 <span className="text-gray-400 font-normal">({filtered.length}건)</span>
+        </h4>
+        {isFiltered && (
+          <button onClick={resetFilters} className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors">
+            <X className="h-3.5 w-3.5" />필터 초기화
+          </button>
+        )}
+      </div>
+
+      {/* ── 필터 영역 ── */}
+      <div className="space-y-2 p-3 bg-gray-50 rounded-lg border">
+
+        {/* 검색 */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <input
+            type="text"
+            value={keyword}
+            onChange={e => wrap(() => setKeyword(e.target.value))}
+            placeholder="점검 항목명, 리소스, check_id 검색..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          />
+          {keyword && (
+            <button onClick={() => wrap(() => setKeyword(''))} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* 상태 필터 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 w-10 shrink-0">상태</span>
           {(['FAIL', 'PASS', 'ALL'] as const).map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                filter === f
+              onClick={() => wrap(() => setStatusFilter(f))}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                statusFilter === f
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
               }`}
             >
-              {f === 'FAIL' ? `실패 (${findings.filter(x => x.status === 'FAIL').length})` :
-               f === 'PASS' ? `통과 (${findings.filter(x => x.status === 'PASS').length})` :
-               `전체 (${findings.length})`}
+              {f === 'FAIL' ? `실패 (${findings.filter(x => x.status === 'FAIL').length})`
+               : f === 'PASS' ? `통과 (${findings.filter(x => x.status === 'PASS').length})`
+               : `전체 (${findings.length})`}
             </button>
           ))}
         </div>
+
+        {/* 심각도 필터 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 w-10 shrink-0">심각도</span>
+          <button
+            onClick={() => wrap(() => setSeverityFilter('ALL'))}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              severityFilter === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+            }`}
+          >전체</button>
+          {severities.filter(s => findings.some(f => f.severity === s)).map(s => (
+            <button
+              key={s}
+              onClick={() => wrap(() => setSeverityFilter(s))}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                severityFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+              }`}
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: SEVERITY_COLORS[s] }} />
+              {SEVERITY_LABELS[s]} ({findings.filter(f => f.severity === s).length})
+            </button>
+          ))}
+        </div>
+
+        {/* 서비스 필터 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 w-10 shrink-0">서비스</span>
+          <button
+            onClick={() => wrap(() => setServiceFilter('ALL'))}
+            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+              serviceFilter === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+            }`}
+          >전체</button>
+          <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+            {services.map(svc => (
+              <button
+                key={svc}
+                onClick={() => wrap(() => setServiceFilter(svc))}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  serviceFilter === svc ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}
+              >
+                {svc.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-2 max-h-96 overflow-y-auto">
-        {filtered.slice(0, 100).map((f, i) => <FindingRow key={i} finding={f} />)}
-        {filtered.length > 100 && (
-          <p className="text-xs text-gray-400 text-center py-2">상위 100건만 표시됩니다.</p>
-        )}
+      {/* ── 결과 목록 ── */}
+      <div className="space-y-2">
+        {paginated.map((f, i) => <FindingRow key={i} finding={f} />)}
         {filtered.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-6">해당하는 항목이 없습니다.</p>
+          <p className="text-xs text-gray-400 text-center py-8">해당하는 항목이 없습니다.</p>
         )}
       </div>
+
+      {/* ── 페이지네이션 ── */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="text-xs px-3 py-1 rounded border bg-white text-gray-600 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+          >이전</button>
+          {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+            const start = Math.max(1, Math.min(page - 3, totalPages - 6));
+            const p = start + i;
+            if (p > totalPages) return null;
+            return (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`text-xs w-7 h-7 rounded border transition-colors ${
+                  p === page ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}
+              >{p}</button>
+            );
+          })}
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="text-xs px-3 py-1 rounded border bg-white text-gray-600 hover:border-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
+          >다음</button>
+          <span className="text-xs text-gray-400">{page} / {totalPages} 페이지</span>
+        </div>
+      )}
     </div>
   );
 }
