@@ -165,7 +165,8 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
     ]
 
     if request.compliance:
-        cmd.extend(["--compliance", request.compliance])
+        # 다중 컴플라이언스 지원: prowler aws --compliance cis_2.0_aws kisa_isms_p_2023_korean_aws
+        cmd.extend(["--compliance"] + request.compliance)
         # --compliance와 --service 동시 사용 불가 → 결과 파싱 후 서비스 필터링
     else:
         if request.services:
