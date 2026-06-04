@@ -404,7 +404,7 @@ function FindingList({ findings }: { findings: FindingSummary[] }) {
                 {SEVERITY_LABELS[s]} ({count})
               </button>
             );
-          )}
+          })}
         </div>
 
         {/* 서비스 필터 */}
