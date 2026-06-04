@@ -58,7 +58,6 @@ export default function App() {
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="SK m&service" className="h-8 w-auto" />
               <span className="text-sm text-gray-400 border-l pl-3">보안 대시보드</span>
-            </div>
               {config && (
                 <span className={`ml-2 flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
                   config.translation_enabled
