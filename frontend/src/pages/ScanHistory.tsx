@@ -396,18 +396,27 @@ function FindingList({ findings }: { findings: FindingSummary[] }) {
               severityFilter === 'ALL' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
             }`}
           >전체</button>
-          {severities.filter(s => findings.some(f => f.severity === s)).map(s => (
-            <button
-              key={s}
-              onClick={() => wrap(() => setSeverityFilter(s))}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                severityFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-              }`}
-            >
-              <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: SEVERITY_COLORS[s] }} />
-              {SEVERITY_LABELS[s]} ({findings.filter(f => f.severity === s).length})
-            </button>
-          ))}
+          {severities.filter(s => findings.some(f => f.severity === s)).map(s => {
+            // 상태 + 서비스 필터 적용 후 해당 심각도 건수
+            const count = findings.filter(f => {
+              const statusOk  = statusFilter === 'ALL'  || f.status === statusFilter;
+              const serviceOk = serviceFilter === 'ALL' || f.service_name === serviceFilter;
+              return statusOk && serviceOk && f.severity === s;
+            }).length;
+            if (count === 0) return null;
+            return (
+              <button
+                key={s}
+                onClick={() => wrap(() => setSeverityFilter(s))}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  severityFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle" style={{ backgroundColor: SEVERITY_COLORS[s] }} />
+                {SEVERITY_LABELS[s]} ({count})
+              </button>
+            );
+          )}
         </div>
 
         {/* 서비스 필터 */}
@@ -420,17 +429,25 @@ function FindingList({ findings }: { findings: FindingSummary[] }) {
             }`}
           >전체</button>
           <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-            {services.map(svc => (
-              <button
-                key={svc}
-                onClick={() => wrap(() => setServiceFilter(svc))}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  serviceFilter === svc ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-                }`}
-              >
-                {svc.toUpperCase()}
-              </button>
-            ))}
+            {services.map(svc => {
+              const count = findings.filter(f => {
+                const statusOk   = statusFilter === 'ALL'   || f.status === statusFilter;
+                const severityOk = severityFilter === 'ALL' || f.severity === severityFilter;
+                return statusOk && severityOk && f.service_name === svc;
+              }).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={svc}
+                  onClick={() => wrap(() => setServiceFilter(svc))}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    serviceFilter === svc ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >
+                  {svc.toUpperCase()} ({count})
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
