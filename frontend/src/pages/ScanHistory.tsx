@@ -246,23 +246,11 @@ function ScanInfoPanel({ scan, compliances }: { scan: ScanResult; compliances: s
             <Server className="h-3.5 w-3.5" />점검된 서비스 ({services.length}개)
           </div>
           <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-            {services.map(svc => {
-              const data = scan.services_summary[svc];
-              const hasFail = data?.failed > 0;
-              return (
-                <span
-                  key={svc}
-                  className={`text-xs px-2.5 py-1 rounded-lg border font-medium ${
-                    hasFail
-                      ? 'bg-red-50 text-red-700 border-red-200'
-                      : 'bg-green-50 text-green-700 border-green-200'
-                  }`}
-                >
-                  {svc.toUpperCase()}
-                  {hasFail && <span className="ml-1 text-red-400">✕{data.failed}</span>}
-                </span>
-              );
-            })}
+            {services.map(svc => (
+              <span key={svc} className="text-xs px-2.5 py-1 rounded-lg border bg-gray-100 text-gray-700 border-gray-200">
+                {svc.toUpperCase()}
+              </span>
+            ))}
           </div>
         </div>
 
