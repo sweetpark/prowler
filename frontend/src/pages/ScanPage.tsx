@@ -292,11 +292,11 @@ export default function ScanPage({
         </div>
 
         {/* 서비스 선택 */}
-        <div className={`mb-6 ${selectedCompliances.length > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
+        <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             서비스 선택{' '}
             {selectedCompliances.length > 0
-              ? <span className="text-amber-500 font-normal">(컴플라이언스 선택 시 사용 불가)</span>
+              ? <span className="text-blue-500 font-normal">(컴플라이언스 결과를 선택 서비스로 필터링)</span>
               : <span className="text-gray-400 font-normal">(선택 안하면 전체)</span>
             }
           </label>
@@ -315,9 +315,12 @@ export default function ScanPage({
               </button>
             ))}
           </div>
-          {selectedServices.length > 0 && selectedCompliances.length === 0 && (
+          {selectedServices.length > 0 && (
             <p className="text-xs text-blue-600 mt-1">
-              선택됨: {selectedServices.join(', ')}
+              {selectedCompliances.length > 0
+                ? `교집합 필터: ${selectedServices.join(', ')}`
+                : `선택됨: ${selectedServices.join(', ')}`
+              }
             </p>
           )}
         </div>

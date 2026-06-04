@@ -114,6 +114,15 @@ async def _run_prowler(scan_id: str, request: ScanRequest) -> None:
             logger.info(f"[{scan_id}] 번역 비활성화 — 영문 결과 사용 ({len(findings)}개 항목)")
         translated = await translate_findings_batch(findings)
 
+        # 컴플라이언스 + 서비스 동시 선택 시 교집합 필터링
+        if request.compliance and request.services:
+            before = len(translated)
+            translated = [
+                f for f in translated
+                if f.get("service_name", "").lower() in [s.lower() for s in request.services]
+            ]
+            logger.info(f"[{scan_id}] 서비스 필터 적용: {before}건 → {len(translated)}건 ({', '.join(request.services)})")
+
         # 결과 집계
         _aggregate_results(scan, translated, compliance=request.compliance or None)
         scan.status = ScanStatus.COMPLETED
@@ -155,9 +164,9 @@ def _build_prowler_command(request: ScanRequest, output_dir: str) -> list[str]:
         "--no-banner",
     ]
 
-    # --compliance와 --service는 동시 사용 불가
     if request.compliance:
-        cmd.extend(["--compliance"] + request.compliance)
+        cmd.extend(["--compliance", request.compliance])
+        # --compliance와 --service 동시 사용 불가 → 결과 파싱 후 서비스 필터링
     else:
         if request.services:
             cmd.extend(["--service"] + request.services)
