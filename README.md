@@ -32,7 +32,7 @@ AWS 클라우드 보안 점검 도구 **Prowler**를 웹에서 실행하고, 결
 ## 프로젝트 구조
 
 ```
-prowler/
+prowler-dashboard-kr/
 ├── backend/                        # FastAPI 서버 (Python)
 │   ├── app/
 │   │   ├── main.py                 # FastAPI 앱 진입점 + CORS
@@ -131,8 +131,8 @@ sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 **코드 받기 및 기동**
 ```bash
-git clone https://<TOKEN>@github.com/sweetpark/prowler.git
-cd prowler
+git clone https://github.com/sweetpark/prowler-dashboard-kr.git
+cd prowler-dashboard-kr
 cp backend/.env.example backend/.env
 vi backend/.env  # ANTHROPIC_API_KEY 입력
 docker compose up -d
